@@ -3,10 +3,11 @@ package runtime
 import (
 	"io"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
-	log "github.com/micro/go-micro/v2/logger"
+	"github.com/micro/go-micro/v2/logger"
 	"github.com/micro/go-micro/v2/runtime/local/build"
 	"github.com/micro/go-micro/v2/runtime/local/process"
 	proc "github.com/micro/go-micro/v2/runtime/local/process/os"
@@ -41,11 +42,8 @@ func newService(s *Service, c CreateOptions) *service {
 	var args []string
 
 	// set command
-	exec = c.Command[0]
-	// set args
-	if len(c.Command) > 1 {
-		args = c.Command[1:]
-	}
+	exec = strings.Join(c.Command, " ")
+	args = c.Args
 
 	return &service{
 		Service: s,
@@ -74,7 +72,7 @@ func (s *service) shouldStart() bool {
 	if s.running {
 		return false
 	}
-	return s.maxRetries <= s.retries
+	return s.retries <= s.maxRetries
 }
 
 func (s *service) ShouldStart() bool {
@@ -111,7 +109,9 @@ func (s *service) Start() error {
 	delete(s.Metadata, "error")
 
 	// TODO: pull source & build binary
-	log.Debugf("Runtime service %s forking new process", s.Service.Name)
+	if logger.V(logger.DebugLevel, logger.DefaultLogger) {
+		logger.Debugf("Runtime service %s forking new process", s.Service.Name)
+	}
 	p, err := s.Process.Fork(s.Exec)
 	if err != nil {
 		s.Metadata["status"] = "error"
@@ -125,6 +125,8 @@ func (s *service) Start() error {
 	s.running = true
 	// set status
 	s.Metadata["status"] = "running"
+	// set started
+	s.Metadata["started"] = time.Now().Format(time.RFC3339)
 
 	if s.output != nil {
 		s.streamOutput()

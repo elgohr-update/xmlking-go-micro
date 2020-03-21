@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	log "github.com/micro/go-micro/v2/logger"
+	"github.com/micro/go-micro/v2/logger"
 	"github.com/micro/go-micro/v2/runtime"
 	"github.com/micro/go-micro/v2/util/kubernetes/api"
 	"github.com/micro/go-micro/v2/util/kubernetes/client"
@@ -38,6 +38,11 @@ func newService(s *runtime.Service, c runtime.CreateOptions) *service {
 		kdeploy.Spec.Template.Metadata.Annotations = make(map[string]string)
 	}
 
+	// create if non existent
+	if s.Metadata == nil {
+		s.Metadata = make(map[string]string)
+	}
+
 	// add the service metadata to the k8s labels, do this first so we
 	// don't override any labels used by the runtime, e.g. name
 	for k, v := range s.Metadata {
@@ -54,14 +59,12 @@ func newService(s *runtime.Service, c runtime.CreateOptions) *service {
 	kdeploy.Metadata.Annotations["group"] = "micro"
 
 	// update the deployment is a custom source is provided
-	if len(c.Source) > 0 {
+	if len(c.Image) > 0 {
 		for i := range kdeploy.Spec.Template.PodSpec.Containers {
-			kdeploy.Spec.Template.PodSpec.Containers[i].Image = c.Source
+			kdeploy.Spec.Template.PodSpec.Containers[i].Image = c.Image
 			kdeploy.Spec.Template.PodSpec.Containers[i].Command = []string{}
-			kdeploy.Spec.Template.PodSpec.Containers[i].Args = []string{name}
+			kdeploy.Spec.Template.PodSpec.Containers[i].Args = []string{}
 		}
-
-		kdeploy.Metadata.Annotations["source"] = c.Source
 	}
 
 	// define the environment values used by the container
@@ -76,9 +79,13 @@ func newService(s *runtime.Service, c runtime.CreateOptions) *service {
 		kdeploy.Spec.Template.PodSpec.Containers[0].Env = append(kdeploy.Spec.Template.PodSpec.Containers[0].Env, env...)
 	}
 
-	// specify the command to exec
-	if strings.HasPrefix(c.Source, "github.com") && len(c.Command) > 0 {
+	// set the command if specified
+	if len(c.Command) > 0 {
 		kdeploy.Spec.Template.PodSpec.Containers[0].Command = c.Command
+	}
+
+	if len(c.Args) > 0 {
+		kdeploy.Spec.Template.PodSpec.Containers[0].Args = c.Args
 	}
 
 	return &service{
@@ -108,7 +115,9 @@ func serviceResource(s *client.Service) *client.Resource {
 func (s *service) Start(k client.Client) error {
 	// create deployment first; if we fail, we dont create service
 	if err := k.Create(deploymentResource(s.kdeploy)); err != nil {
-		log.Debugf("Runtime failed to create deployment: %v", err)
+		if logger.V(logger.DebugLevel, logger.DefaultLogger) {
+			logger.Debugf("Runtime failed to create deployment: %v", err)
+		}
 		s.Status("error", err)
 		v := parseError(err)
 		if v.Reason == "AlreadyExists" {
@@ -118,7 +127,9 @@ func (s *service) Start(k client.Client) error {
 	}
 	// create service now that the deployment has been created
 	if err := k.Create(serviceResource(s.kservice)); err != nil {
-		log.Debugf("Runtime failed to create service: %v", err)
+		if logger.V(logger.DebugLevel, logger.DefaultLogger) {
+			logger.Debugf("Runtime failed to create service: %v", err)
+		}
 		s.Status("error", err)
 		v := parseError(err)
 		if v.Reason == "AlreadyExists" {
@@ -135,13 +146,17 @@ func (s *service) Start(k client.Client) error {
 func (s *service) Stop(k client.Client) error {
 	// first attempt to delete service
 	if err := k.Delete(serviceResource(s.kservice)); err != nil {
-		log.Debugf("Runtime failed to delete service: %v", err)
+		if logger.V(logger.DebugLevel, logger.DefaultLogger) {
+			logger.Debugf("Runtime failed to delete service: %v", err)
+		}
 		s.Status("error", err)
 		return err
 	}
 	// delete deployment once the service has been deleted
 	if err := k.Delete(deploymentResource(s.kdeploy)); err != nil {
-		log.Debugf("Runtime failed to delete deployment: %v", err)
+		if logger.V(logger.DebugLevel, logger.DefaultLogger) {
+			logger.Debugf("Runtime failed to delete deployment: %v", err)
+		}
 		s.Status("error", err)
 		return err
 	}
@@ -153,12 +168,16 @@ func (s *service) Stop(k client.Client) error {
 
 func (s *service) Update(k client.Client) error {
 	if err := k.Update(deploymentResource(s.kdeploy)); err != nil {
-		log.Debugf("Runtime failed to update deployment: %v", err)
+		if logger.V(logger.DebugLevel, logger.DefaultLogger) {
+			logger.Debugf("Runtime failed to update deployment: %v", err)
+		}
 		s.Status("error", err)
 		return err
 	}
 	if err := k.Update(serviceResource(s.kservice)); err != nil {
-		log.Debugf("Runtime failed to update service: %v", err)
+		if logger.V(logger.DebugLevel, logger.DefaultLogger) {
+			logger.Debugf("Runtime failed to update service: %v", err)
+		}
 		return err
 	}
 
