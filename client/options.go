@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"crypto/tls"
 	"time"
 
 	"github.com/micro/go-micro/v2/broker"
@@ -34,6 +35,9 @@ type Options struct {
 
 	// Default Call Options
 	CallOptions CallOptions
+
+	// TLSConfig specifies tls.Config for secure serving
+	TLSConfig *tls.Config
 
 	// Other options for implementations of the interface
 	// can be stored in a context
@@ -160,6 +164,26 @@ func Registry(r registry.Registry) Option {
 func Transport(t transport.Transport) Option {
 	return func(o *Options) {
 		o.Transport = t
+	}
+}
+
+// TLSConfig specifies a *tls.Config
+func TLSConfig(t *tls.Config) Option {
+	return func(o *Options) {
+		// set the internal tls
+		o.TLSConfig = t
+
+		// set the default transport if one is not
+		// already set. Required for Init call below.
+		if o.Transport == nil {
+			o.Transport = transport.DefaultTransport
+		}
+
+		// set the transport tls
+		o.Transport.Init(
+			transport.Secure(true),
+			transport.TLSConfig(t),
+		)
 	}
 }
 

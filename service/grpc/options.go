@@ -12,10 +12,10 @@ import (
 func WithTLS(t *tls.Config) service.Option {
 	return func(o *service.Options) {
 		o.Client.Init(
-			gc.AuthTLS(t),
+			gc.TLSConfig(t),
 		)
 		o.Server.Init(
-			gs.AuthTLS(t),
+			gs.TLSConfig(t),
 		)
 	}
 }

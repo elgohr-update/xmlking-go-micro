@@ -2,6 +2,7 @@ package micro
 
 import (
 	"context"
+	"crypto/tls"
 	"time"
 
 	"github.com/micro/cli/v2"
@@ -219,6 +220,17 @@ func Action(a func(*cli.Context) error) Option {
 func RegisterTTL(t time.Duration) Option {
 	return func(o *Options) {
 		o.Server.Init(server.RegisterTTL(t))
+	}
+}
+
+func WithTLS(t *tls.Config) Option {
+	return func(o *Options) {
+		o.Client.Init(
+			client.TLSConfig(t),
+		)
+		o.Server.Init(
+			server.TLSConfig(t),
+		)
 	}
 }
 

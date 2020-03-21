@@ -36,8 +36,8 @@ func Codec(contentType string, c encoding.Codec) server.Option {
 	}
 }
 
-// AuthTLS should be used to setup a secure authentication using TLS
-func AuthTLS(t *tls.Config) server.Option {
+// TLSConfig should be used to setup a secure authentication using TLS
+func TLSConfig(t *tls.Config) server.Option {
 	return setServerOption(tlsAuth{}, t)
 }
 
